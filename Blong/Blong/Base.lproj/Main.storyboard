@@ -18,15 +18,12 @@
                         <animations/>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="calibratedWhite"/>
                         <gestureRecognizers/>
-                        <connections>
-                            <outletCollection property="gestureRecognizers" destination="ky7-ai-FNs" appends="YES" id="HSR-ed-1EX"/>
-                        </connections>
                     </view>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
                 <panGestureRecognizer minimumNumberOfTouches="1" id="ky7-ai-FNs">
                     <connections>
-                        <action selector="handleAttachmentGesture:" destination="BYZ-38-t0r" id="JSv-7c-SwD"/>
+                        <action selector="didPanPlayerPaddle:" destination="BYZ-38-t0r" id="irT-ey-t48"/>
                     </connections>
                 </panGestureRecognizer>
             </objects>

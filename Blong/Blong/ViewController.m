@@ -13,10 +13,12 @@
 @property (nonatomic, strong) UIDynamicAnimator *animator;
 @property (nonatomic, strong) UIPushBehavior *pusher;
 @property (nonatomic, strong) UICollisionBehavior *collider;
-@property (nonatomic) UIAttachmentBehavior *attachmentBehavior;
 
-@property (nonatomic, assign) CGRect originalBounds;
-@property (nonatomic, assign) CGPoint originalCenter;
+@property (nonatomic, strong) UISnapBehavior *snap;
+@property (nonatomic, strong) UIView *snapArea;
+
+@property (nonatomic, assign) CGRect snapRect;
+@property (nonatomic, assign) CGPoint snapPoint;
 
 @property (nonatomic, strong) UIDynamicItemBehavior *ballDynamicProperties;
 @property (nonatomic, strong) UIDynamicItemBehavior *paddleDynamicProperties;
@@ -24,21 +26,26 @@
 @property (nonatomic, strong) UIView *paddleView;
 @property (nonatomic, strong) UIView *ballView;
 
+@property (readwrite, assign) float dx;
+@property (readwrite, assign) float dy;
+
+@property (nonatomic, strong) UIPanGestureRecognizer *panGesture;
+
 
 @end
 
 @implementation ViewController
 
-
-
 - (void)viewDidLoad {
     [super viewDidLoad];
     // Do any additional setup after loading the view, typically from a nib.
-    self.animator = [[UIDynamicAnimator alloc] initWithReferenceView:self.view];
     self.view.backgroundColor = [UIColor blackColor];
+
+    [self addSnapArea];
+    self.animator = [[UIDynamicAnimator alloc] initWithReferenceView:self.view];
     
-    self.originalBounds = self.paddleView.bounds;
-    self.originalCenter = self.paddleView.center;
+    self.dx = 0;
+    self.dy = 0;
 
     
     [self startGame];
@@ -103,79 +110,61 @@
     //make heavy
     self.paddleDynamicProperties.density = 1000.0f;
     
-    //let user move
-  
 
     
 }
+- (IBAction)didPanPlayerPaddle:(UIPanGestureRecognizer *)sender {
+    self.panGesture = sender;
+    [self.paddleView addGestureRecognizer:self.panGesture];
 
-- (IBAction) handleAttachmentGesture:(UIPanGestureRecognizer*)gesture
-{
-    CGPoint location = [gesture locationInView:self.view];
-    CGPoint boxLocation = [gesture locationInView:self.paddleView];
-    
-    switch (gesture.state) {
-        case UIGestureRecognizerStateBegan:{
-            NSLog(@"you touch started position %@",NSStringFromCGPoint(location));
-            NSLog(@"location in paddle started is %@",NSStringFromCGPoint(boxLocation));
-            
-            // 1
-//            [self.animator removeAllBehaviors];
-            
-            // 2
-            UIOffset centerOffset = UIOffsetMake(boxLocation.x - CGRectGetMidX(self.paddleView.bounds),
-                                                 boxLocation.y - CGRectGetMidY(self.paddleView.bounds));
-            self.attachmentBehavior = [[UIAttachmentBehavior alloc] initWithItem:self.paddleView
-                                                                offsetFromCenter:centerOffset
-                                                                attachedToAnchor:location];
-            // 3
-            self.paddleView.center = self.attachmentBehavior.anchorPoint;
-//            self.blueSquare.center = location;
-            
-            // 4
-            [self.animator addBehavior:self.attachmentBehavior];
-            
+    if ((sender.state == UIGestureRecognizerStateBegan || sender.state ==UIGestureRecognizerStateChanged) && (sender.numberOfTouches == 1)) {
+        
+        //Remove any previous snap to avoid flicker if both gesture and physics are on the view at same time
+        if (self.snap != nil) {
+            [self.animator removeBehavior:self.snap];
+        }
+        CGPoint location = [sender locationInView:self.view];
+        
+        if (self.dx == 0) {
+            self.dx = location.x - self.paddleView.center.x;
+        }
+        if (self.dy == 0) {
+            self.dy = location.y - self.paddleView.center.y;
+        }
+        
+        //apply offsets
+        CGPoint newLocation = CGPointMake(location.x - self.dx, location.y - self.dy);
+        self.paddleView.center = newLocation;
 
-            
-            break;
-        }
-        case UIGestureRecognizerStateEnded: {
-            NSLog(@"you touch ended position %@",NSStringFromCGPoint(location));
-            NSLog(@"location in paddle ended is %@",NSStringFromCGPoint(boxLocation));
-            
-            break;
-        }
-        default: {
-            [self.attachmentBehavior setAnchorPoint:[gesture locationInView:self.view]];
-            self.paddleView.center = self.attachmentBehavior.anchorPoint;
-            [self.animator updateItemUsingCurrentState:self.paddleView];
-
-        }
-            break;
+    } else if (sender.state == UIGestureRecognizerStateEnded) {
+        //reset offsets when dragging ends so they will be recalculated correctly
+        self.dx = 0;
+        self.dy = 0;
+        
+        [self snapImageIntoPlace:[sender locationInView:self.view]];
     }
 }
 
-- (void)resetDemo
-{
-    [self.animator removeAllBehaviors];
+- (void)addSnapArea {
+    self.snapRect = CGRectMake(self.view.center.x - 100, self.view.center.y - 100, 200, 200);
+    self.snapPoint = CGPointMake(self.snapRect.size.width / 2, self.snapRect.size.height / 2);
     
-    [UIView animateWithDuration:0.45 animations:^{
-        self.paddleView.bounds = self.originalBounds;
-        self.paddleView.center = self.originalCenter;
-        self.paddleView.transform = CGAffineTransformIdentity;
-    }];
+    self.snapArea = [[UIView alloc] initWithFrame:self.snapRect];
+    self.snapArea.backgroundColor = [UIColor whiteColor];
+    [self.view addSubview:self.snapArea];
 }
 
-//- (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
-//    
-//    UITouch *touch = [touches anyObject];
-//    
-//    // If the touch was in the placardView, move the placardView to its location
-//    if ([touch view] == self.paddleView) {
-//        CGPoint location = [touch locationInView:self.view];
-//        self.paddleView.center = location;
-//    }
-//}
+- (void)snapImageIntoPlace:(CGPoint)touchPoint {
+    if (CGRectContainsPoint(self.snapRect, touchPoint)) {
+        if (self.snap != nil) {
+            [self.animator removeBehavior:self.snap];
+        }
+        self.snap = [[UISnapBehavior alloc] initWithItem:self.paddleView snapToPoint:self.snapPoint];
+        [self.animator addBehavior:self.snap];
+    }
+}
+
+
 
 
 - (void)didReceiveMemoryWarning {
