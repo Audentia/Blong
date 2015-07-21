@@ -46,13 +46,14 @@
 - (void)createCollisions {
     self.collider = [[UICollisionBehavior alloc] initWithItems:@[self.ballView, self.paddleView]];
 //    self.collider.collisionDelegate = self.paddleView;
-    [self.animator addBehavior:self.collider];
     self.collider.collisionMode = UICollisionBehaviorModeEverything;
-    self.collider.translatesReferenceBoundsIntoBoundary = YES;
+    [self.collider addBoundaryWithIdentifier:@"left" fromPoint:CGPointMake(0, 0) toPoint:CGPointMake(0, self.view.frame.size.height)];
+    [self.collider addBoundaryWithIdentifier:@"right" fromPoint:CGPointMake(self.view.frame.size.width, 0) toPoint:CGPointMake(self.view.frame.size.width, self.view.frame.size.height)];
+    [self.animator addBehavior:self.collider];
 }
 
 - (void)createBall {
-    CGRect ballRect = CGRectMake(100, 100, 20, 20);
+    CGRect ballRect = CGRectMake(self.view.center.x, self.view.center.y, 20, 20);
     self.ballView = [[UIView alloc] initWithFrame:ballRect];
     self.ballView.backgroundColor = [UIColor whiteColor];
     [self.view addSubview:self.ballView];
@@ -70,7 +71,26 @@
 //    Start the ball
     self.pusher = [[UIPushBehavior alloc] initWithItems:@[self.ballView]
                                                    mode:UIPushBehaviorModeInstantaneous];
-    self.pusher.pushDirection = CGVectorMake(0.1, 0.1);
+    int uniqueStartInt = arc4random_uniform(4);
+//    want to make random numbers so long as the sum equals the same magnitude in the equation v = sqr(x^2 + y^2)
+    switch (uniqueStartInt) {
+        case 0:
+            self.pusher.pushDirection = CGVectorMake(0.1, 0.1);
+            break;
+        case 1:
+            self.pusher.pushDirection = CGVectorMake(0.2, 0.05);
+            break;
+        case 2:
+            self.pusher.pushDirection = CGVectorMake(0.05, 0.2);
+            break;
+        case 3:
+            self.pusher.pushDirection = CGVectorMake(0.1, 0.1);
+            break;
+            
+        default:
+            break;
+    }
+
     self.pusher.active = YES;
 //    Because push is instantaneous, it will only happen once
     [self.animator addBehavior:self.pusher];
