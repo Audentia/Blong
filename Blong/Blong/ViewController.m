@@ -120,7 +120,7 @@
             NSLog(@"location in paddle started is %@",NSStringFromCGPoint(boxLocation));
             
             // 1
-//            [self.animator removeAllBehaviors];
+            [self.animator removeBehavior:self.attachmentBehavior];
             
             // 2
             UIOffset centerOffset = UIOffsetMake(boxLocation.x - CGRectGetMidX(self.paddleView.bounds),
