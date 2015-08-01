@@ -22,11 +22,19 @@
 @property (nonatomic, strong) UIView *ballView;
 @property (nonatomic, assign) CGPoint ballPosition;
 
+@property (nonatomic, strong) UIPushBehavior *pushAI;
 @property (nonatomic, strong) UIAttachmentBehavior *attach;
 @property (nonatomic, strong) UISnapBehavior *snap;
 
 @property (readwrite, assign) float dxPlayer;
 @property (readwrite, assign) float dxAI;
+
+@property (readwrite, assign) float difficultyResistance;
+@property (readwrite, assign) float difficultyMagnitude;
+@property (readwrite, strong) UIAlertController *difficultyMenu;
+
+@property (readwrite, assign) int scorePlayer;
+@property (readwrite, assign) int scoreAI;
 
 @end
 
@@ -39,13 +47,14 @@
     self.animator = [[UIDynamicAnimator alloc] initWithReferenceView:self.view];
     
 //    methods to start specific games
+    [self setDifficulty];
     [self startGame];
 }
 
 - (void)startGame {
-    [self createBall];
-    [self createPlayerPaddle];
     [self createAIPaddle];
+    [self createPlayerPaddle];
+    [self createBall];
     [self createCollisions];
     
     // Remove rotation
@@ -56,9 +65,41 @@
     self.paddleDynamicProperties.density = 1000.0f;
     
     //make slow
-    self.paddleDynamicProperties.friction = 1000;
+    self.paddleDynamicProperties.resistance = self.difficultyResistance;
     
     [self.animator addBehavior:self.paddleDynamicProperties];
+    
+    //score labels
+    UILabel *scoreLabelPlayer = [[UILabel alloc]initWithFrame:CGRectMake((self.view.frame.size.width / 2)-50, self.view.frame.size.height - 200, 100, 100)];
+    scoreLabelPlayer.text = @"1";
+    scoreLabelPlayer.backgroundColor = [UIColor clearColor];
+    scoreLabelPlayer.textAlignment = UITextAlignmentCenter;
+    scoreLabelPlayer.textColor = [UIColor whiteColor];
+    
+    
+    [self.view addSubview:scoreLabelPlayer];
+}
+
+- (void)setDifficulty {
+    self.difficultyMenu = [UIAlertController alertControllerWithTitle:@"Difficulty Settings" message:@"Choose a Difficulty" preferredStyle:UIAlertControllerStyleAlert];
+UIAlertAction *easy = [UIAlertAction actionWithTitle:@"Easy" style:UIAlertActionStyleDefault handler:^(UIAlertAction * __nonnull action) {
+    self.difficultyMagnitude = 5;
+    self.difficultyResistance = .5;
+    [self dismissViewControllerAnimated:YES completion:nil];
+}];
+    UIAlertAction *medium = [UIAlertAction actionWithTitle:@"Medium" style:UIAlertActionStyleDefault handler:^(UIAlertAction * __nonnull action) {
+        self.difficultyMagnitude = 10;
+        self.difficultyResistance = .5;
+        [self.difficultyMenu dismissViewControllerAnimated:YES completion:nil];
+
+    }];
+    
+    [self.difficultyMenu addAction:easy];
+    [self.difficultyMenu addAction:medium];
+    self.difficultyMenu.view.backgroundColor = [UIColor whiteColor];
+    [self presentViewController:self.difficultyMenu animated:YES completion:nil];
+//    self.difficultyMagnitude = 5;
+//    self.difficultyResistance = .5;
 }
 
 - (void)createCollisions {
@@ -144,6 +185,7 @@
 -(void)observeValueForKeyPath:(nullable NSString *)keyPath ofObject:(nullable id)object change:(nullable NSDictionary<NSString *,id> *)change context:(nullable void *)context {
     if ([keyPath isEqualToString:@"self.ballView.center"]) {
         
+        //basic restart for when ball goes out of bounds
         if (!CGRectContainsRect(self.view.frame, self.ballView.frame)) {
             [self createBall];
             [self createCollisions];
@@ -160,19 +202,21 @@
         CGPoint newLocation = CGPointMake(location.x - self.dxAI, self.paddleViewAI.center.y);
         CGRect newRect = CGRectMake(newLocation.x - (self.paddleViewAI.frame.size.width / 2), self.paddleViewAI.frame.origin.y, self.paddleViewAI.frame.size.width, self.paddleViewAI.frame.size.height);
         
-        
+        if (self.pushAI != nil) {
+            [self.animator removeBehavior:self.pushAI];
+        }
         //keep paddle inside view
         if (CGRectContainsRect(self.view.frame, newRect)) {
             //apply offsets
-            
-            if (self.attach != nil) {
-                [self.animator removeBehavior:self.attach];
+            self.pushAI = [[UIPushBehavior alloc] initWithItems:@[self.paddleViewAI] mode:UIPushBehaviorModeInstantaneous];
+            if (self.paddleViewAI.center.x < self.ballView.center.x) {
+                [self.pushAI setAngle:0 magnitude:self.difficultyMagnitude];
+                [self.animator addBehavior:self.pushAI];
             }
-            self.attach = [[UIAttachmentBehavior alloc] initWithItem:self.paddleViewAI attachedToAnchor:self.paddleViewAI.center];
-            self.attach.frequency = 10;
-            self.attach.damping = 1;
-            [self.attach setAnchorPoint:newLocation];
-            [self.animator addBehavior:self.attach];
+            if (self.paddleViewAI.center.x > self.ballView.center.x) {
+                [self.pushAI setAngle:M_PI magnitude:self.difficultyMagnitude];
+                [self.animator addBehavior:self.pushAI];
+            }
 
         }
         //update animations
