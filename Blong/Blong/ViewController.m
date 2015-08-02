@@ -47,8 +47,11 @@
     self.animator = [[UIDynamicAnimator alloc] initWithReferenceView:self.view];
     
 //    methods to start specific games
-    [self setDifficulty];
     [self startGame];
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [self setDifficulty];
 }
 
 - (void)startGame {
@@ -69,37 +72,25 @@
     
     [self.animator addBehavior:self.paddleDynamicProperties];
     
-    //score labels
-    UILabel *scoreLabelPlayer = [[UILabel alloc]initWithFrame:CGRectMake((self.view.frame.size.width / 2)-50, self.view.frame.size.height - 200, 100, 100)];
-    scoreLabelPlayer.text = @"1";
-    scoreLabelPlayer.backgroundColor = [UIColor clearColor];
-    scoreLabelPlayer.textAlignment = UITextAlignmentCenter;
-    scoreLabelPlayer.textColor = [UIColor whiteColor];
-    
-    
-    [self.view addSubview:scoreLabelPlayer];
 }
 
 - (void)setDifficulty {
     self.difficultyMenu = [UIAlertController alertControllerWithTitle:@"Difficulty Settings" message:@"Choose a Difficulty" preferredStyle:UIAlertControllerStyleAlert];
-UIAlertAction *easy = [UIAlertAction actionWithTitle:@"Easy" style:UIAlertActionStyleDefault handler:^(UIAlertAction * __nonnull action) {
-    self.difficultyMagnitude = 5;
-    self.difficultyResistance = .5;
-    [self dismissViewControllerAnimated:YES completion:nil];
-}];
+    UIAlertAction *easy = [UIAlertAction actionWithTitle:@"Easy" style:UIAlertActionStyleDefault handler:^(UIAlertAction * __nonnull action) {
+        self.difficultyMagnitude = 5;
+        self.difficultyResistance = .5;
+        [self dismissViewControllerAnimated:YES completion:nil];
+    }];
     UIAlertAction *medium = [UIAlertAction actionWithTitle:@"Medium" style:UIAlertActionStyleDefault handler:^(UIAlertAction * __nonnull action) {
-        self.difficultyMagnitude = 10;
+        self.difficultyMagnitude = 7;
         self.difficultyResistance = .5;
         [self.difficultyMenu dismissViewControllerAnimated:YES completion:nil];
-
     }];
     
     [self.difficultyMenu addAction:easy];
     [self.difficultyMenu addAction:medium];
     self.difficultyMenu.view.backgroundColor = [UIColor whiteColor];
     [self presentViewController:self.difficultyMenu animated:YES completion:nil];
-//    self.difficultyMagnitude = 5;
-//    self.difficultyResistance = .5;
 }
 
 - (void)createCollisions {
