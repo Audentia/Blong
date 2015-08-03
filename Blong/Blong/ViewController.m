@@ -35,6 +35,8 @@
 
 @property (readwrite, assign) int scorePlayer;
 @property (readwrite, assign) int scoreAI;
+@property (readwrite, strong) UILabel *scoreLabelPlayer;
+@property (readwrite, strong) UILabel *scoreLabelAI;
 
 @end
 
@@ -72,6 +74,21 @@
     
     [self.animator addBehavior:self.paddleDynamicProperties];
     
+    //score labels
+    self.scoreLabelPlayer = [[UILabel alloc] initWithFrame:CGRectMake((self.view.frame.size.width / 2)-50, self.view.frame.size.height - 200, 100, 100)];
+    self.scoreLabelPlayer.text = @"0";
+    self.scoreLabelPlayer.backgroundColor = [UIColor clearColor];
+    self.scoreLabelPlayer.textAlignment = NSTextAlignmentCenter;
+    self.scoreLabelPlayer.textColor = [UIColor whiteColor];
+    
+    self.scoreLabelAI = [[UILabel alloc] initWithFrame:CGRectMake((self.view.frame.size.width / 2)-50, 150, 100, 100)];
+    self.scoreLabelAI.text = @"0";
+    self.scoreLabelAI.backgroundColor = [UIColor clearColor];
+    self.scoreLabelAI.textAlignment = NSTextAlignmentCenter;
+    self.scoreLabelAI.textColor = [UIColor whiteColor];
+    
+    [self.view addSubview:self.scoreLabelPlayer];
+    [self.view addSubview:self.scoreLabelAI];
 }
 
 - (void)setDifficulty {
@@ -147,7 +164,7 @@
 }
 
 - (void)createPlayerPaddle {
-    CGRect paddleRect = CGRectMake((self.view.frame.size.width / 2), (self.view.frame.size.height - 30), 100, 10);
+    CGRect paddleRect = CGRectMake((self.view.frame.size.width / 2) - 50, (self.view.frame.size.height - 30), 100, 10);
     self.paddleView = [[UIView alloc] initWithFrame:paddleRect];
     self.paddleView.backgroundColor = [UIColor whiteColor];
     [self.view addSubview:self.paddleView];
@@ -163,7 +180,7 @@
 }
 
 - (void)createAIPaddle {
-    CGRect paddleRect = CGRectMake((self.view.frame.size.width / 2), 30, 100, 10);
+    CGRect paddleRect = CGRectMake((self.view.frame.size.width / 2) - 50, 30, 100, 10);
     self.paddleViewAI = [[UIView alloc] initWithFrame:paddleRect];
     self.paddleViewAI.backgroundColor = [UIColor whiteColor];
     [self.view addSubview:self.paddleViewAI];
@@ -176,10 +193,26 @@
 -(void)observeValueForKeyPath:(nullable NSString *)keyPath ofObject:(nullable id)object change:(nullable NSDictionary<NSString *,id> *)change context:(nullable void *)context {
     if ([keyPath isEqualToString:@"self.ballView.center"]) {
         
-        //basic restart for when ball goes out of bounds
-        if (!CGRectContainsRect(self.view.frame, self.ballView.frame)) {
+        
+        //track score
+        if (self.ballView.center.y < self.paddleViewAI.center.y) {
+            [self removeObserver:self forKeyPath:@"self.ballView.center"];
+            self.scorePlayer++;
+            NSString *scorePlayerString = [NSString stringWithFormat:@"%d", self.scorePlayer];
+            self.scoreLabelPlayer.text = scorePlayerString;
             [self createBall];
             [self createCollisions];
+            [self addObserver:self forKeyPath:@"self.ballView.center" options:NSKeyValueObservingOptionNew context:nil];
+        }
+        
+        if (self.ballView.center.y > self.paddleView.center.y) {
+            [self removeObserver:self forKeyPath:@"self.ballView.center"];
+            self.scoreAI++;
+            NSString *scoreAIString = [NSString stringWithFormat:@"%d", self.scoreAI];
+            self.scoreLabelAI.text = scoreAIString;
+            [self createBall];
+            [self createCollisions];
+            [self addObserver:self forKeyPath:@"self.ballView.center" options:NSKeyValueObservingOptionNew context:nil];
         }
         
         CGPoint location = self.ballView.center;
