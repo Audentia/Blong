@@ -23,8 +23,15 @@
 @property (nonatomic, assign) CGPoint ballPosition;
 
 @property (nonatomic, strong) UIPushBehavior *pushAI;
-@property (nonatomic, strong) UIAttachmentBehavior *attach;
-@property (nonatomic, strong) UISnapBehavior *snap;
+
+@property (readwrite, assign) BOOL slingshotMode;
+@property (nonatomic, strong) UIAttachmentBehavior *attachSlingshot;
+@property (nonatomic, strong) UIPushBehavior *pushSlingshot;
+@property (nonatomic, assign) CGPoint anchorSlingshot;
+@property (nonatomic, assign) float dxFromAnchor;
+@property (nonatomic, assign) float dyFromAnchor;
+@property (nonatomic, assign) CGVector vectorFromAnchor;
+@property (nonatomic, assign) CGRect slingshotZone;
 
 @property (readwrite, assign) float dxPlayer;
 @property (readwrite, assign) float dxAI;
@@ -38,6 +45,7 @@
 @property (readwrite, strong) UILabel *scoreLabelPlayer;
 @property (readwrite, strong) UILabel *scoreLabelAI;
 
+
 @end
 
 @implementation ViewController
@@ -47,7 +55,7 @@
 //    basic setup for any game
     self.view.backgroundColor = [UIColor blackColor];
     self.animator = [[UIDynamicAnimator alloc] initWithReferenceView:self.view];
-    
+    self.slingshotZone = CGRectMake((self.view.frame.size.width / 2) - 100, (self.view.frame.size.height / 2) - 100, 200, 200);
 //    methods to start specific games
     [self startGame];
 }
@@ -59,8 +67,11 @@
 - (void)startGame {
     [self createAIPaddle];
     [self createPlayerPaddle];
-    [self createBall];
-    [self createCollisions];
+    
+    UIPanGestureRecognizer *panGestureSlingshot = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(panGesture:)];
+    [panGestureSlingshot setMinimumNumberOfTouches:1];
+    [panGestureSlingshot setMaximumNumberOfTouches:1];
+    [self.view addGestureRecognizer:panGestureSlingshot];
     
     // Remove rotation
     self.paddleDynamicProperties = [[UIDynamicItemBehavior alloc] initWithItems:@[self.paddleView, self.paddleViewAI]];
@@ -91,17 +102,117 @@
     [self.view addSubview:self.scoreLabelAI];
 }
 
+- (void)slingshot {
+    self.slingshotMode = YES;
+   
+    
+    self.anchorSlingshot = self.view.center;
+//    self.attachSlingshot = [[UIAttachmentBehavior alloc] initWithItem:self.ballView attachedToAnchor:self.anchorSlingshot];
+//    [self.animator addBehavior:self.attachSlingshot];
+}
+
+- (void)panGesture:(UIPanGestureRecognizer *)sender {
+    if ((sender.state == UIGestureRecognizerStateBegan || sender.state ==UIGestureRecognizerStateChanged) && (sender.numberOfTouches == 1)) {
+        
+        CGPoint location = [sender locationInView:self.view];
+        
+        if (!self.slingshotMode) {
+
+        
+            if (self.dxPlayer == 0) {
+                self.dxPlayer = location.x - self.paddleView.center.x;
+            }
+            
+            //create offsets
+            CGPoint newLocation = CGPointMake(location.x - self.dxPlayer, self.paddleView.center.y);
+            CGRect newRect = CGRectMake(newLocation.x - (self.paddleView.frame.size.width / 2), self.paddleView.frame.origin.y, self.paddleView.frame.size.width, self.paddleView.frame.size.height);
+            
+            //keep paddle inside view
+            if (CGRectContainsRect(self.view.frame, newRect)) {
+                //apply offsets
+                self.paddleView.center = newLocation;
+            }
+            //update animations
+            [self.animator updateItemUsingCurrentState:self.paddleView];
+        }
+        if (self.slingshotMode) {
+            if (CGRectContainsRect(self.slingshotZone, self.ballView.frame)) {
+                self.ballView.center = location;
+                
+            } else {
+                float dx = 0.0;
+                float dy = 0.0;
+                float halfOfViewX = self.view.frame.size.width / 2;
+                float halfOfViewY = self.view.frame.size.height / 2;
+                float halfOfZoneX = self.slingshotZone.size.width / 2;
+                float halfOfZoneY = self.slingshotZone.size.height / 2;
+                
+                if (location.x <= halfOfViewX - halfOfZoneX) {
+                    dx = -(halfOfViewX - halfOfZoneX - location.x);
+                }
+                if (location.x >= halfOfViewX + halfOfZoneX) {
+                    dx = location.x - halfOfViewX - halfOfZoneX;
+                }
+                
+                if (location.y <= halfOfViewY - halfOfZoneY) {
+                    dy = -(halfOfViewY - halfOfZoneY - location.y);
+                }
+                if (location.y >= halfOfViewY + halfOfZoneY) {
+                    dy = location.y - halfOfViewY - halfOfZoneY;
+                }
+                
+                NSLog(@"dx is %f dy is %f", dx, dy);
+                
+                self.ballView.center = CGPointMake(location.x - dx, location.y - dy);
+            }
+            self.dxFromAnchor = self.anchorSlingshot.x - self.ballView.center.x;
+            self.dyFromAnchor = self.anchorSlingshot.y - self.ballView.center.y;
+            self.vectorFromAnchor = CGVectorMake(self.dxFromAnchor / 500, self.dyFromAnchor / 500);
+            
+            [self.animator updateItemUsingCurrentState:self.ballView];
+        }
+    }
+    if (sender.state == UIGestureRecognizerStateEnded) {
+        if (!self.slingshotMode) {
+            //reset offsets when dragging ends so they will be recalculated correctly
+            self.dxPlayer = 0;
+        }
+        if (self.slingshotMode) {
+            if (self.pushSlingshot != nil) {
+                [self.animator removeBehavior:self.pushSlingshot];
+            }
+//            [self.animator removeBehavior:self.attachSlingshot];
+            self.pushSlingshot = [[UIPushBehavior alloc] initWithItems:@[self.ballView] mode:UIPushBehaviorModeInstantaneous];
+            [self.pushSlingshot setPushDirection:self.vectorFromAnchor];
+            [self.animator addBehavior:self.pushSlingshot];
+            [self.animator updateItemUsingCurrentState:self.ballView];
+            
+            //make sure vector resets
+            self.dxFromAnchor = 0;
+            self.dyFromAnchor = 0;
+            self.vectorFromAnchor = CGVectorMake(0, 0);
+            self.slingshotMode = NO;
+        }
+    }
+}
+
+
 - (void)setDifficulty {
     self.difficultyMenu = [UIAlertController alertControllerWithTitle:@"Difficulty Settings" message:@"Choose a Difficulty" preferredStyle:UIAlertControllerStyleAlert];
     UIAlertAction *easy = [UIAlertAction actionWithTitle:@"Easy" style:UIAlertActionStyleDefault handler:^(UIAlertAction * __nonnull action) {
         self.difficultyMagnitude = 5;
         self.difficultyResistance = .5;
         [self dismissViewControllerAnimated:YES completion:nil];
+        [self createBall];
+        [self sendBall];
+
     }];
     UIAlertAction *medium = [UIAlertAction actionWithTitle:@"Medium" style:UIAlertActionStyleDefault handler:^(UIAlertAction * __nonnull action) {
         self.difficultyMagnitude = 7;
         self.difficultyResistance = .5;
         [self.difficultyMenu dismissViewControllerAnimated:YES completion:nil];
+        [self createBall];
+        [self sendBall];
     }];
     
     [self.difficultyMenu addAction:easy];
@@ -120,7 +231,7 @@
 }
 
 - (void)createBall {
-    CGRect ballRect = CGRectMake(self.view.center.x, self.view.center.y, 20, 20);
+    CGRect ballRect = CGRectMake(self.view.center.x - 10, self.view.center.y - 10, 20, 20);
     self.ballView = [[UIView alloc] initWithFrame:ballRect];
     self.ballView.backgroundColor = [UIColor whiteColor];
     [self.view addSubview:self.ballView];
@@ -135,11 +246,15 @@
     self.ballDynamicProperties.friction = 0.0;
     self.ballDynamicProperties.resistance = 0.0;
     
-//    Start the ball
+    [self createCollisions];
+}
+
+- (void)sendBall {
+    //    Start the ball
     self.pusher = [[UIPushBehavior alloc] initWithItems:@[self.ballView]
                                                    mode:UIPushBehaviorModeInstantaneous];
     int uniqueStartInt = arc4random_uniform(4);
-//    want to make random numbers so long as the sum equals the same magnitude in the equation v = sqr(x^2 + y^2)
+    //    want to make random numbers so long as the sum equals the same magnitude in the equation v = sqr(x^2 + y^2)
     switch (uniqueStartInt) {
         case 0:
             self.pusher.pushDirection = CGVectorMake(0.1, 0.1);
@@ -157,9 +272,9 @@
         default:
             break;
     }
-
+    
     self.pusher.active = YES;
-//    Because push is instantaneous, it will only happen once
+    //    Because push is instantaneous, it will only happen once
     [self.animator addBehavior:self.pusher];
 }
 
@@ -173,10 +288,6 @@
     
     //allow user to move
     self.dxPlayer = 0;
-    UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(movePaddle:)];
-    [panGesture setMinimumNumberOfTouches:1];
-    [panGesture setMaximumNumberOfTouches:1];
-    [self.view addGestureRecognizer:panGesture];
 }
 
 - (void)createAIPaddle {
@@ -201,7 +312,7 @@
             NSString *scorePlayerString = [NSString stringWithFormat:@"%d", self.scorePlayer];
             self.scoreLabelPlayer.text = scorePlayerString;
             [self createBall];
-            [self createCollisions];
+            [self sendBall];
             [self addObserver:self forKeyPath:@"self.ballView.center" options:NSKeyValueObservingOptionNew context:nil];
         }
         
@@ -211,9 +322,10 @@
             NSString *scoreAIString = [NSString stringWithFormat:@"%d", self.scoreAI];
             self.scoreLabelAI.text = scoreAIString;
             [self createBall];
-            [self createCollisions];
+            [self slingshot];
             [self addObserver:self forKeyPath:@"self.ballView.center" options:NSKeyValueObservingOptionNew context:nil];
-        }
+
+       }
         
         CGPoint location = self.ballView.center;
         
@@ -248,32 +360,6 @@
     }
 }
 
-- (void)movePaddle:(UIPanGestureRecognizer *)sender {
-    if ((sender.state == UIGestureRecognizerStateBegan || sender.state ==UIGestureRecognizerStateChanged) && (sender.numberOfTouches == 1)) {
-        
-        CGPoint location = [sender locationInView:self.view];
-        
-        if (self.dxPlayer == 0) {
-            self.dxPlayer = location.x - self.paddleView.center.x;
-        }
-        
-        //create offsets
-        CGPoint newLocation = CGPointMake(location.x - self.dxPlayer, self.paddleView.center.y);
-          CGRect newRect = CGRectMake(newLocation.x - (self.paddleView.frame.size.width / 2), self.paddleView.frame.origin.y, self.paddleView.frame.size.width, self.paddleView.frame.size.height);
-        
-        //keep paddle inside view
-        if (CGRectContainsRect(self.view.frame, newRect)) {
-            //apply offsets
-            self.paddleView.center = newLocation;
-        }
-        //update animations
-        [self.animator updateItemUsingCurrentState:self.paddleView];
 
-
-    } else if (sender.state == UIGestureRecognizerStateEnded) {
-        //reset offsets when dragging ends so they will be recalculated correctly
-        self.dxPlayer = 0;
-    }
-}
 
 @end
